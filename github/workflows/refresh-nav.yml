@@ -1,0 +1,20 @@
+name: Daily NAV Refresh
+on:
+  schedule:
+    - cron: '30 0 * * 1-5'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Touch refresh timestamp
+        run: |
+          mkdir -p data
+          echo "{ \"last_refreshed\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" }" > data/nav-cache.json
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore: daily NAV refresh [skip ci]'
+          file_pattern: 'data/nav-cache.json'
