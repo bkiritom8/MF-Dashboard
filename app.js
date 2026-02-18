@@ -615,8 +615,10 @@ function drawCompareChart(){
     var d=f._data;if(!d)return;
     visDates.forEach(function(date){allVals.push(getNavOnDate(d,date));});
   });
-  var minV=Math.min.apply(null,allVals)*0.97;
-  var maxV=Math.max.apply(null,allVals)*1.03;
+  var rawMin=Math.min.apply(null,allVals);
+  var rawMax=Math.max.apply(null,allVals);
+  var minV=rawMin<50?0:rawMin<100?50:rawMin<500?100:rawMin<1000?500:Math.floor(rawMin/500)*500;
+  var maxV=rawMax*1.03;
 
   function xp(i){return PAD.l+(i/(visDates.length-1))*c.w;}
   function yp(v){return PAD.t+c.h-(v-minV)/(maxV-minV)*c.h;}
