@@ -1,4 +1,5 @@
 var PIN_KEY='mfd_pin',PORT_KEY='mfd_portfolio';
+
 function initPin(){
   var pin=localStorage.getItem(PIN_KEY);
   if(!pin){
@@ -21,6 +22,7 @@ function pct(n){return(n>=0?'+':'')+(n*100).toFixed(2)+'%';}
 function cc(n){return n>0?'positive':n<0?'negative':'neutral';}
 function loadPortfolio(){try{return JSON.parse(localStorage.getItem(PORT_KEY))||[];}catch(e){return[];}}
 function savePortfolio(p){localStorage.setItem(PORT_KEY,JSON.stringify(p));}
+
 var navCache={};
 async function fetchNAV(code){
   if(navCache[code])return navCache[code];
@@ -40,18 +42,34 @@ function getNavOnDate(data,ds){
 }
 function latestNAV(data){return parseFloat(data.data[0].nav);}
 function calcXIRR(inv,cur,date){return window.xirr([-inv,cur],[new Date(date),new Date()]);}
+
+// Date helper — returns YYYY-MM-DD string N days ago
+function daysAgoStr(n){
+  var d=new Date();d.setDate(d.getDate()-n);
+  return d.toISOString().slice(0,10);
+}
+
 var portfolio=[];
+
 async function init(){
-  portfolio=loadPortfolio();renderFunds();updateSummary();
+  portfolio=loadPortfolio();
+  renderFunds();
+  updateSummary();
+  loadTopFunds();
   document.getElementById('last-updated').textContent='Data from mfapi.in - '+new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
 }
+
+// ── Your Funds ────────────────────────────────────────────
 function renderFunds(){
   var g=document.getElementById('funds-grid');
-  if(!portfolio.length){g.innerHTML='<div class="empty-state"><p>No funds added yet. Click <strong>+ Add Fund</strong> to get started.</p></div>';return;}
+  if(!portfolio.length){
+    g.innerHTML='<div class="empty-state"><p>No funds added yet. Click <strong>+ Add Fund</strong> to get started.</p></div>';
+    return;
+  }
   g.innerHTML=portfolio.map(function(f,i){
     return '<div class="fund-card" id="fc-'+i+'">'+
       '<div class="fund-card-top"><div class="fund-name">'+f.name+'</div>'+
-      '<button class="fund-remove" onclick="removeFund('+i+')">x</button></div>'+
+      '<button class="fund-remove" onclick="removeFund('+i+')" title="Remove fund">Remove</button></div>'+
       '<div class="fund-meta">'+
         '<div class="fund-stat"><span class="fs-label">Invested</span><span class="fs-value neutral">'+fmt(f.amount)+'</span></div>'+
         '<div class="fund-stat"><span class="fs-label">Since</span><span class="fs-value neutral">'+new Date(f.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})+'</span></div>'+
@@ -59,6 +77,7 @@ function renderFunds(){
   }).join('');
   portfolio.forEach(function(f,i){loadFundData(f,i);});
 }
+
 async function loadFundData(f,i){
   var data=await fetchNAV(f.code);
   var el=document.getElementById('fc-'+i),le=document.getElementById('fl-'+i);
@@ -73,12 +92,14 @@ async function loadFundData(f,i){
       '<div class="fund-stat"><span class="fs-label">XIRR</span><span class="fs-value '+cc(xirr)+'">'+pct(xirr)+'</span></div>'+
     '</div>'+
     '<div class="fund-progress">'+
-      '<div style="display:flex;justify-content:space-between;font-size:.7rem;color:#64748b"><span>NAV: Rs.'+nav.toFixed(4)+'</span><span>'+f.units.toFixed(3)+' units</span></div>'+
+      '<div style="display:flex;justify-content:space-between;font-size:.7rem;color:#64748b">'+
+        '<span>NAV: Rs.'+nav.toFixed(4)+'</span><span>'+f.units.toFixed(3)+' units</span></div>'+
       '<div class="progress-bar"><div class="progress-fill" style="width:'+Math.min(50+ap*50,100)+'%"></div></div>'+
     '</div>');
   portfolio[i]._cur=cur;portfolio[i]._gain=gain;portfolio[i]._xirr=xirr;
   updateSummary();
 }
+
 function updateSummary(){
   var inv=portfolio.reduce(function(s,f){return s+(f.amount||0);},0);
   var cur=portfolio.reduce(function(s,f){return s+(f._cur||0);},0);
@@ -95,10 +116,97 @@ function updateSummary(){
     xe.textContent=px!==null?pct(px):'-';xe.className='s-value '+cc(px);
   }
 }
+
 function removeFund(i){
-  if(!confirm('Remove '+portfolio[i].name+'?'))return;
-  portfolio.splice(i,1);savePortfolio(portfolio);renderFunds();updateSummary();
+  if(!confirm('Remove "'+portfolio[i].name+'" from your portfolio?'))return;
+  portfolio.splice(i,1);
+  savePortfolio(portfolio);
+  renderFunds();
+  updateSummary();
 }
+
+// ── Top Performers ────────────────────────────────────────
+// Category codes map to AMFI category search terms
+var CATEGORIES={
+  '120':'Large Cap','119':'Mid Cap','118':'Small Cap',
+  '117':'Multi Cap','121':'ELSS','122':'Flexi Cap'
+};
+
+var topCache={};
+var topLoading=false;
+
+async function loadTopFunds(){
+  if(topLoading)return;
+  var period=parseInt(document.getElementById('top-period').value);
+  var catCode=document.getElementById('top-category').value;
+  var catName=CATEGORIES[catCode];
+  var cacheKey=catCode+'-'+period;
+  var res=document.getElementById('top-results');
+
+  if(topCache[cacheKey]){renderTopTable(topCache[cacheKey],catName,period);return;}
+
+  topLoading=true;
+  res.innerHTML='<p class="top-loading">Searching '+catName+' funds...</p>';
+
+  // Search for funds in this category
+  var results=await searchFunds(catName+' fund');
+  if(!results||!results.length){
+    res.innerHTML='<p class="top-hint">Could not load funds. Try again.</p>';
+    topLoading=false;return;
+  }
+
+  // Limit to first 30 results to avoid too many API calls
+  var candidates=results.slice(0,30);
+  var cutoffStr=daysAgoStr(period);
+  var scored=[];
+
+  res.innerHTML='<p class="top-loading">Fetching NAV history for '+candidates.length+' funds...</p>';
+
+  // Fetch NAV data in parallel batches of 6
+  for(var b=0;b<candidates.length;b+=6){
+    var batch=candidates.slice(b,b+6);
+    var fetched=await Promise.all(batch.map(async function(c){
+      var data=await fetchNAV(c.schemeCode);
+      if(!data||!data.data||data.data.length<2)return null;
+      var navNow=latestNAV(data);
+      var navThen=getNavOnDate(data,cutoffStr);
+      if(!navThen||navThen<=0)return null;
+      // Annualized return
+      var years=period/365;
+      var annualized=Math.pow(navNow/navThen,1/years)-1;
+      return{name:c.schemeName,code:c.schemeCode,ret:annualized,navNow:navNow};
+    }));
+    fetched.forEach(function(f){if(f)scored.push(f);});
+  }
+
+  // Sort by annualized return descending, take top 10
+  scored.sort(function(a,b){return b.ret-a.ret;});
+  var top10=scored.slice(0,10);
+  topCache[cacheKey]=top10;
+  renderTopTable(top10,catName,period);
+  topLoading=false;
+}
+
+function renderTopTable(funds,catName,period){
+  var res=document.getElementById('top-results');
+  var yrs=period===365?'1 Year':period===1095?'3 Years':'5 Years';
+  if(!funds.length){res.innerHTML='<p class="top-hint">No data available.</p>';return;}
+  var html='<div style="font-size:.78rem;color:#64748b;margin-bottom:.75rem">Top '+catName+' funds by annualized return over '+yrs+'</div>';
+  html+='<table class="top-table"><tr><th>#</th><th>Fund</th><th>Annualized Return</th><th>Current NAV</th></tr>';
+  funds.forEach(function(f,i){
+    var badge=i===0?'gold':i===1?'silver':i===2?'bronze':'';
+    html+='<tr>'+
+      '<td><span class="rank-badge '+badge+'">'+(i+1)+'</span></td>'+
+      '<td style="max-width:280px;line-height:1.4">'+f.name+'</td>'+
+      '<td class="'+cc(f.ret)+'">'+pct(f.ret)+'</td>'+
+      '<td class="neutral">Rs.'+f.navNow.toFixed(2)+'</td>'+
+    '</tr>';
+  });
+  html+='</table><p style="font-size:.7rem;color:#475569;margin-top:.75rem">Returns are annualized. Past performance does not guarantee future results.</p>';
+  res.innerHTML=html;
+}
+
+// ── Add Fund Modal ────────────────────────────────────────
 var searchTimer,selectedFund=null;
 function openAddFund(){
   selectedFund=null;
@@ -133,6 +241,8 @@ async function addFund(){
   portfolio.push({code:selectedFund.code,name:selectedFund.name,amount:amount,date:date,units:units});
   savePortfolio(portfolio);closeModal();renderFunds();
 }
+
+// ── Compare ───────────────────────────────────────────────
 var compareTimer;
 function searchCompare(q){
   clearTimeout(compareTimer);
@@ -168,6 +278,8 @@ async function runCompare(code,name){
   });
   res.innerHTML=html+'</table>';
 }
+
+// ── Export / Import ───────────────────────────────────────
 function exportPortfolio(){
   var a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(loadPortfolio(),null,2)],{type:'application/json'}));
@@ -186,6 +298,8 @@ function importPortfolio(e){
   };
   reader.readAsText(file);
 }
+
+// ── Boot ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',initPin);
 document.addEventListener('DOMContentLoaded',function(){
   var p=document.getElementById('pin-input');

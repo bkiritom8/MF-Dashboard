@@ -27,14 +27,45 @@
         <button class="btn-primary" onclick="openAddFund()">+ Add Fund</button>
       </div>
     </header>
+
     <div id="summary-bar" class="summary-bar">
       <div class="summary-card"><span class="s-label">Total Invested</span><span class="s-value" id="total-invested">-</span></div>
       <div class="summary-card"><span class="s-label">Current Value</span><span class="s-value" id="total-current">-</span></div>
       <div class="summary-card"><span class="s-label">Total Gain / Loss</span><span class="s-value" id="total-gain">-</span></div>
       <div class="summary-card highlight"><span class="s-label">Portfolio XIRR</span><span class="s-value" id="portfolio-xirr">-</span></div>
     </div>
+
     <div class="section-title">Your Funds</div>
     <div id="funds-grid" class="funds-grid"></div>
+
+    <div class="section-title" style="margin-top:2rem">Top Performing Funds</div>
+    <div class="top-section">
+      <div class="top-controls">
+        <div class="control-group">
+          <label>Category</label>
+          <select id="top-category" onchange="loadTopFunds()">
+            <option value="120">Large Cap</option>
+            <option value="119">Mid Cap</option>
+            <option value="118">Small Cap</option>
+            <option value="117">Multi Cap</option>
+            <option value="121">ELSS (Tax Saving)</option>
+            <option value="122">Flexi Cap</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Time Period</label>
+          <select id="top-period" onchange="loadTopFunds()">
+            <option value="365">1 Year</option>
+            <option value="1095" selected>3 Years</option>
+            <option value="1825">5 Years</option>
+          </select>
+        </div>
+      </div>
+      <div id="top-results" class="top-results">
+        <p class="top-hint">Select a category and period above to see top performers.</p>
+      </div>
+    </div>
+
     <div class="section-title" style="margin-top:2rem">Compare Any Fund</div>
     <div class="compare-section">
       <div class="compare-search">
@@ -44,6 +75,7 @@
       <div id="compare-result" class="compare-result hidden"></div>
     </div>
   </div>
+
   <div id="modal" class="modal-overlay hidden">
     <div class="modal">
       <h3>Add Mutual Fund</h3>
