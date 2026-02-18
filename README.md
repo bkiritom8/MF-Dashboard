@@ -8,7 +8,7 @@ A personal mutual fund tracker for Indian markets, hosted on GitHub Pages.
 2. Upload all files from this zip (keep the .github folder intact)
 3. Go to Settings > Pages > Source > GitHub Actions
 4. Wait about 1 minute
-5. Your dashboard is live at: https://bkiritom8.github.io/mf-dashboard/ 
+5. Your dashboard is live at: https://bkiritom8.github.io/MF-Dashboard/ 
 
 ## How to use
 
