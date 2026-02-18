@@ -97,9 +97,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:1.2
 .dropdown-item:last-child{border-bottom:none}
 .dropdown-item:hover{background:#334155;color:#f1f5f9}
 .dropdown-loading{padding:.75rem 1rem;color:#64748b;font-size:.85rem}
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:flex-start;justify-content:center;z-index:200;padding:1.5rem 1rem;overflow-y:auto}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:flex-start;justify-content:center;z-index:200;padding:.5rem;overflow-y:auto}
 .modal{background:#1e293b;border:1px solid #334155;border-radius:1.25rem;padding:2rem;width:90%;max-width:440px}
-.modal-wide{max-width:840px}
+.modal-wide{max-width:98vw;width:98vw}
 .modal h3{color:#f1f5f9;margin-bottom:1.25rem}
 .form-group{margin-bottom:1rem;position:relative}
 .form-group label{display:block;font-size:.78rem;color:#94a3b8;margin-bottom:.35rem}
